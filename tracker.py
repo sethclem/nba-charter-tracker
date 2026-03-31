@@ -125,12 +125,11 @@ def find_scheduled_game(visitor: str, home: str, schedule_df: pd.DataFrame) -> d
 
 def find_road_trip_game(origin_team: str, dest_team: str, schedule_df: pd.DataFrame) -> dict:
     """
-    Check if origin_team played an away game yesterday (road trip leg 2).
-    i.e., origin_team was the visitor at dest_team's arena yesterday,
-    and today/tomorrow they're flying onward to another city.
+    Road trip check:
+    - Find who recently played at origin_team's arena (they're the traveling team)
+    - Check if that same team is dest_team's next home opponent
     """
     today = date.today()
-    yesterday = today - timedelta(days=1)
 
     for _, row in schedule_df.iterrows():
         try:
@@ -138,13 +137,32 @@ def find_road_trip_game(origin_team: str, dest_team: str, schedule_df: pd.DataFr
         except ValueError:
             continue
 
-        # Was origin_team visiting dest_team yesterday?
-        if (
-            str(row["Vistor"]) == origin_team
-            and str(row["Home"]) == dest_team
-            and game_date == yesterday
-        ):
-            return {"date": game_date, "visitor": origin_team, "home": dest_team, "road_trip": True}
+        days_diff = (today - game_date).days
+
+        # Who just visited origin_team's arena in the last 2 days?
+        if str(row["Home"]) == origin_team and 0 <= days_diff <= 2:
+            traveling_team = str(row["Vistor"])
+
+            # Is that team dest_team's next home opponent?
+            for _, row2 in schedule_df.iterrows():
+                try:
+                    game_date2 = datetime.strptime(str(row2["Game"]).split(" ")[0], "%Y-%m-%d").date()
+                except ValueError:
+                    continue
+
+                future_diff = (game_date2 - today).days
+
+                if (
+                    str(row2["Vistor"]) == traveling_team
+                    and str(row2["Home"]) == dest_team
+                    and 0 <= future_diff <= SCHEDULE_LOOKAHEAD
+                ):
+                    return {
+                        "date": game_date2,
+                        "visitor": traveling_team,
+                        "home": dest_team,
+                        "road_trip": True
+                    }
 
     return None
 
