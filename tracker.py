@@ -166,6 +166,53 @@ def find_road_trip_game(origin_team: str, dest_team: str, schedule_df: pd.DataFr
 
     return None
 
+def find_return_home(origin_team: str, dest_team: str, schedule_df: pd.DataFrame) -> dict:
+    """
+    Return home check:
+    - origin_team recently played an away game at origin city
+    - dest_team is the same as the traveling team (flying home)
+    """
+    today = date.today()
+
+    for _, row in schedule_df.iterrows():
+        try:
+            game_date = datetime.strptime(str(row["Game"]).split(" ")[0], "%Y-%m-%d").date()
+        except ValueError:
+            continue
+
+        days_diff = (today - game_date).days
+
+        # Did dest_team just play an away game at origin_team's arena?
+        if (
+            str(row["Vistor"]) == dest_team
+            and str(row["Home"]) == origin_team
+            and 0 <= days_diff <= 1
+        ):
+            # Check if they have a home game coming up
+            upcoming_home_game = None
+            for _, row2 in schedule_df.iterrows():
+                try:
+                    game_date2 = datetime.strptime(str(row2["Game"]).split(" ")[0], "%Y-%m-%d").date()
+                except ValueError:
+                    continue
+
+                future_diff = (game_date2 - today).days
+
+                if (
+                    str(row2["Home"]) == dest_team
+                    and 0 <= future_diff <= SCHEDULE_LOOKAHEAD
+                ):
+                    upcoming_home_game = {"date": game_date2, "visitor": str(row2["Vistor"]), "home": dest_team}
+
+            return {
+                "date": game_date,
+                "visitor": dest_team,
+                "home": origin_team,
+                "return_home": True,
+                "upcoming_home_game": upcoming_home_game
+            }
+
+    return None
 
 # ── Discord bot ────────────────────────────────────────────────────────────────
 intents = discord.Intents.default()
@@ -178,16 +225,36 @@ tracking_task = None   # holds the asyncio Task when active
 async def build_notification(flight, game: dict, origin_team: str, dest_team: str) -> str:
     """Format a Discord notification message for a matched charter flight."""
     game_date = game["date"].strftime("%a %b %d")
-    road_trip_note = " *(road trip — played yesterday)*" if game.get("road_trip") else ""
 
-    lines = [
-        "🏀 **NBA Charter Detected**",
-        f"✈️  `{flight.callsign}`  |  {flight.origin_airport_iata} → {flight.destination_airport_iata}  |  {flight.aircraft_code}",
-        f"🏟️  **{origin_team}** flying to play **{dest_team}**{road_trip_note}",
-        f"📅  Game date: {game_date}",
-    ]
-    return "\n".join(lines)
+    if game.get("return_home"):
+        msg = [
+            "🏠 **NBA Charter — Return Flight**",
+            f"✈️  `{flight.callsign}`  |  {flight.origin_airport_iata} → {flight.destination_airport_iata}  |  {flight.aircraft_code}",
+            f"🏟️  **{dest_team}** flying home after playing **{origin_team}**",
+            f"📅  Away game: {game_date}",
+        ]
+        if game.get("upcoming_home_game"):
+            hg = game["upcoming_home_game"]
+            hg_date = hg["date"].strftime("%a %b %d")
+            msg.append(f"🏠  Next home game vs **{hg['visitor']}** on {hg_date}")
 
+    elif game.get("road_trip"):
+        msg = [
+            "🔄 **NBA Charter — Road Trip**",
+            f"✈️  `{flight.callsign}`  |  {flight.origin_airport_iata} → {flight.destination_airport_iata}  |  {flight.aircraft_code}",
+            f"🏟️  **{game['visitor']}** mid road trip, next up: **{dest_team}**",
+            f"📅  Next game: {game_date}",
+        ]
+
+    else:
+        msg = [
+            "🏀 **NBA Charter — Away Game**",
+            f"✈️  `{flight.callsign}`  |  {flight.origin_airport_iata} → {flight.destination_airport_iata}  |  {flight.aircraft_code}",
+            f"🏟️  **{origin_team}** flying to play **{dest_team}**",
+            f"📅  Game date: {game_date}",
+        ]
+
+    return "\n".join(msg)
 
 async def poll_charters(channel: discord.TextChannel):
     """
@@ -253,6 +320,10 @@ async def poll_charters(channel: discord.TextChannel):
                 if not game:
                     game = find_road_trip_game(origin_team, dest_team, nba_schedule)
 
+                # If no road trip match, check return home
+                if not game:
+                    game = find_return_home(origin_team, dest_team, nba_schedule)
+
                 if game:
                     seen_flights.add(flight_key)
                     msg = await build_notification(flight, game, origin_team, dest_team)
@@ -260,8 +331,6 @@ async def poll_charters(channel: discord.TextChannel):
                     log.info("Notification sent for %s", callsign)
                 else:
                     log.info("%s: no matching game found in schedule", callsign)
-
-            log.info("Poll complete — %d charter(s) evaluated. Sleeping %ds.", charter_count, POLL_INTERVAL)
 
         except Exception as e:
             log.error("Error during poll: %s", e)
