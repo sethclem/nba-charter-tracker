@@ -1,8 +1,9 @@
 requests
-discord.py==2.3.2
-FlightRadarAPI==1.4.0
-pandas==2.2.2
-geopy==2.4.1
-python-dotenv==1.0.1
-nba_api==1.11.4
+discord.py
+FlightRadarAPI
+pandas
+geopy
+python-dotenv
+nba_api
 airportsdata
+beautifulsoup4
