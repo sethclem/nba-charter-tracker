@@ -51,7 +51,7 @@ def fetch_schedule(season: int) -> list:
     result = []
     result = []
     for _, row in games_df.iterrows():
-        game_date = str(row["gameDate"])[:10]
+        game_date = datetime.datetime.strptime(str(row["gameDate"])[:10], "%m/%d/%Y").strftime("%Y-%m-%d")
         visitor   = str(row["awayTeam_teamTricode"])
         home      = str(row["homeTeam_teamTricode"])
 
