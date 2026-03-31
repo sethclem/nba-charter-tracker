@@ -3,6 +3,13 @@
 schedule_fetcher.py
 Pulls the current NBA season schedule using the nba_api package
 and saves it to data/NBA_Sched.csv.
+
+Run this once at the start of each season, or whenever you want
+to refresh the schedule data.
+
+Usage:
+    python schedule_fetcher.py
+    python schedule_fetcher.py --season 2024
 """
 
 import argparse
@@ -11,7 +18,7 @@ import datetime
 import logging
 import os
 
-from nba_api.stats.endpoints import leaguegamefinder
+from nba_api.stats.endpoints import scheduleleaguev2
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger(__name__)
@@ -33,30 +40,27 @@ def fetch_schedule(season: int) -> list:
     season_str = season_string(season)
     log.info("Fetching schedule for %s season...", season_str)
 
-    gamefinder = leaguegamefinder.LeagueGameFinder(
-        season_nullable=season_str,
-        league_id_nullable="00",
-        season_type_nullable="Regular Season"
+    schedule = scheduleleaguev2.ScheduleLeagueV2(
+        season=season_str,
+        league_id="00"
     )
 
-    games_df = gamefinder.get_data_frames()[0]
+    games_df = schedule.get_data_frames()[0]
     log.info("Retrieved %d game records", len(games_df))
 
-    away_games = games_df[games_df["MATCHUP"].str.contains("@")].copy()
+    result = []
+    result = []
+    for _, row in games_df.iterrows():
+        game_date = str(row["gameDate"])[:10]
+        visitor   = str(row["awayTeam_teamTricode"])
+        home      = str(row["homeTeam_teamTricode"])
 
-    schedule = []
-    for _, row in away_games.iterrows():
-        parts = row["MATCHUP"].split(" @ ")
-        if len(parts) != 2:
-            continue
-        visitor_abbr = parts[0].strip()
-        home_abbr    = parts[1].strip()
-        game_date    = str(row["GAME_DATE"])[:10]
-        schedule.append({"Game": game_date, "Vistor": visitor_abbr, "Home": home_abbr})
+        if game_date and visitor and home:
+            result.append({"Game": game_date, "Vistor": visitor, "Home": home})
 
-    schedule.sort(key=lambda x: x["Game"])
-    log.info("Parsed %d games", len(schedule))
-    return schedule
+    result.sort(key=lambda x: x["Game"])
+    log.info("Parsed %d games", len(result))
+    return result
 
 
 def save_schedule(games: list, filepath: str):
