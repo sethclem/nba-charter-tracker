@@ -18,6 +18,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import pytz
+EASTERN = pytz.timezone("US/Eastern")
+
+def today_eastern():
+    return datetime.now(EASTERN).date()
+
 # ── Logging ────────────────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
@@ -103,7 +109,7 @@ def find_scheduled_game(visitor: str, home: str, schedule_df: pd.DataFrame) -> d
     Check if visitor is playing at home within the lookahead window.
     Returns the matching row as a dict, or None.
     """
-    today = date.today()
+    today = today_eastern()
 
     for _, row in schedule_df.iterrows():
         try:
@@ -129,7 +135,7 @@ def find_road_trip_game(origin_team: str, dest_team: str, schedule_df: pd.DataFr
     - Find who recently played at origin_team's arena (they're the traveling team)
     - Check if that same team is dest_team's next home opponent
     """
-    today = date.today()
+    today = today_eastern()
 
     for _, row in schedule_df.iterrows():
         try:
@@ -172,7 +178,7 @@ def find_return_home(origin_team: str, dest_team: str, schedule_df: pd.DataFrame
     - origin_team recently played an away game at origin city
     - dest_team is the same as the traveling team (flying home)
     """
-    today = date.today()
+    today = today_eastern()
 
     for _, row in schedule_df.iterrows():
         try:
@@ -279,7 +285,7 @@ async def poll_charters(channel: discord.TextChannel):
                     continue
 
                 # Deduplicate by callsign + date so we don't re-alert the same flight
-                flight_key = f"{callsign}_{date.today()}"
+                flight_key = f"{callsign}_{today_eastern()}"
                 if flight_key in seen_flights:
                     continue
 

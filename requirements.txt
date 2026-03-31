@@ -7,3 +7,4 @@ python-dotenv
 nba_api
 airportsdata
 beautifulsoup4
+pytz 
