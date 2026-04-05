@@ -231,6 +231,7 @@ tracking_task = None   # holds the asyncio Task when active
 async def build_notification(flight, game: dict, origin_team: str, dest_team: str) -> str:
     """Format a Discord notification message for a matched charter flight."""
     game_date = game["date"].strftime("%a %b %d")
+    fr24_url = f"https://www.flightradar24.com/{flight.callsign}/{flight.id}"
 
     if game.get("return_home"):
         msg = [
@@ -238,6 +239,7 @@ async def build_notification(flight, game: dict, origin_team: str, dest_team: st
             f"✈️  `{flight.callsign}`  |  {flight.origin_airport_iata} → {flight.destination_airport_iata}  |  {flight.aircraft_code}",
             f"🏟️  **{dest_team}** flying home after playing **{origin_team}**",
             f"📅  Away game: {game_date}",
+            f"🔗  {fr24_url}",
         ]
         if game.get("upcoming_home_game"):
             hg = game["upcoming_home_game"]
@@ -250,6 +252,7 @@ async def build_notification(flight, game: dict, origin_team: str, dest_team: st
             f"✈️  `{flight.callsign}`  |  {flight.origin_airport_iata} → {flight.destination_airport_iata}  |  {flight.aircraft_code}",
             f"🏟️  **{game['visitor']}** mid road trip, next up: **{dest_team}**",
             f"📅  Next game: {game_date}",
+            f"🔗  {fr24_url}",
         ]
 
     else:
@@ -258,6 +261,7 @@ async def build_notification(flight, game: dict, origin_team: str, dest_team: st
             f"✈️  `{flight.callsign}`  |  {flight.origin_airport_iata} → {flight.destination_airport_iata}  |  {flight.aircraft_code}",
             f"🏟️  **{origin_team}** flying to play **{dest_team}**",
             f"📅  Game date: {game_date}",
+            f"🔗  {fr24_url}",
         ]
 
     return "\n".join(msg)
